@@ -78,7 +78,7 @@ def tampilkan_analisis():
                 title='Distribusi Job Satisfaction berdasarkan Gender'
                     )
 
-        # Styling
+        
         fig.update_traces(textposition='outside')
         fig.update_layout(
                 xaxis_title="Job Satisfaction",
@@ -88,16 +88,150 @@ def tampilkan_analisis():
                 uniformtext_mode='hide'
         )
 
-        # Tampilkan di Streamlit
-        st.plotly_chart(fig, use_container_width=True)
-        st.image("https://static.streamlit.io/examples/dog.jpg", width=200)
-            
+        st.plotly_chart(fig, use_container_width=True,  key="plot_gender")
+
+
+        ###
+        st.sidebar.header("Filter Data")
+
+        # Dropdown Work Life Balance
+        wlb_options = sorted(data['wlb'].dropna().unique())
+        selected_wlb = st.sidebar.multiselect("Work Life Balance", options=wlb_options, default=wlb_options)
+
+        # Dropdown Job Satisfaction
+        js_options = sorted(data['job_satisfaction'].dropna().unique())
+        selected_js = st.sidebar.multiselect("Job Satisfaction", options=js_options, default=js_options)
+
+        # --- Filter Data ---
+        filtered_data = data[
+            data['wlb'].isin(selected_wlb) &
+            data['job_satisfaction'].isin(selected_js)
+        ]
+
+        # --- Grouped Data ---
+        js_wlb = filtered_data.groupby(['wlb', 'job_satisfaction']).size().reset_index(name='count')
+
+        # --- Plot ---
+        st.subheader(" Distribusi Job Satisfaction berdasarkan Work Life Balance")
+
+        if js_wlb.empty:
+            st.warning("Data tidak ditemukan untuk kombinasi filter tersebut.")
+        else:
+            fig = px.bar(
+                js_wlb,
+                x='wlb',
+                y='count',
+                color='job_satisfaction',
+                barmode='group',
+                text='count',
+                labels={
+                    'wlb': 'Work Life Balance',
+                    'count': 'Jumlah Karyawan',
+                    'job_satisfaction': 'Job Satisfaction'
+                },
+                title='Distribusi Job Satisfaction berdasarkan Work Life Balance'
+            )
+
+            fig.update_traces(textposition='outside')
+            fig.update_layout(
+                xaxis_title="Work Life Balance",
+                yaxis_title="Jumlah Karyawan",
+                legend_title="Job Satisfaction",
+                uniformtext_minsize=8,
+                uniformtext_mode='hide'
+            )
+
+        st.plotly_chart(fig, use_container_width=True, key="plot_wlb")
+
+        ### Sidebar Filters
+        st.sidebar.header("Filter Data")
+
+        # Filter job satisfaction
+        js_options = sorted(data['job_satisfaction'].dropna().unique())
+        selected_js_stress = st.sidebar.multiselect("Job Satisfaction", options=js_options, default=js_options, key="js_stress")
+
+        # Filter stress range
+        stress_min, stress_max = int(data['stress'].min()), int(data['stress'].max())
+        selected_stress = st.sidebar.slider("Rentang Stress", stress_min, stress_max, (stress_min, stress_max))
+
+        # Filter data
+        filtered_df = data[
+            (data['job_satisfaction'].isin(selected_js)) &
+            (data['stress'] >= selected_stress[0]) &
+            (data['stress'] <= selected_stress[1])
+        ]
+
+        # Crosstab dengan jumlah unik emp_id
+        js_stress = pd.crosstab(
+            index=filtered_df['stress'],
+            columns=filtered_df['job_satisfaction'],
+            values=filtered_df['emp_id'],
+            aggfunc='nunique'
+        )
+
+        # Jika kolomnya kosong setelah filter
+        if js_stress.empty:
+            st.subheader("Distribusi Job Satisfaction berdasarkan Stress")
+            st.warning("Data tidak ditemukan untuk kombinasi filter tersebut.")
+        else:
+            # Ubah format ke long agar bisa di-plot
+            js_stress = js_stress.reset_index().melt(id_vars='stress', var_name='job_satisfaction', value_name='count')
+
+            st.subheader("Distribusi Job Satisfaction berdasarkan Stress")
+
+            # Plot
+            fig = px.bar(
+                js_stress,
+                x='stress',
+                y='count',
+                color='job_satisfaction',
+                barmode='group',
+                text='count',
+                labels={
+                    'stress': 'Stress',
+                    'count': 'Jumlah Karyawan',
+                    'job_satisfaction': 'Job Satisfaction'
+                },
+                title='Distribusi Job Satisfaction berdasarkan Stress'
+            )
+
+            fig.update_traces(textposition='outside')
+            fig.update_layout(
+                xaxis_title="Stress",
+                yaxis_title="Jumlah Karyawan",
+                legend_title="Job Satisfaction",
+                uniformtext_minsize=8,
+                uniformtext_mode='hide'
+            )
+
+            st.plotly_chart(fig, use_container_width=True, key="plot_stress")  
+
+
+
+
     with tab3:
         st.header("Insight")
+        st.subheader("Distribusi Job Satisfaction berdasarkan Gender ")
+        st.image('gender.png')
         st.write('''Dilihat dari visualisasi,  karyawan laki-laki dan wanita paling banyak memiliki kepuasan kerja yang baik dengan skala 4. 
                  Dari hasil ini dapat juga disimpulkan bahwa kesetaraan gender dalam perusahaan ini juga baik, sehingga disarankan untuk mempertahankan kebijakan perusahaan yang berkaitan dengan gender laki-laki dan wanita
                 ''')
-        st.image("https://static.streamlit.io/examples/owl.jpg", width=200)
-
+        
+        st.subheader("Distribusi Job Satisfaction berdasarkan Work Life Balance")
+        st.image('wlb.png')
+        st.write('''
+                Dapat diketahui bahwa work life balance sangat mempengaruhi kepuasan kerja, yang mana work life balance skala 5 (sangat baik) memiliki kepuasan kerja yang baik pula dengan skala 4.
+                 Disarankan perusahaan lebih memperhatikan kehidupan karyawan dengan cara, tidak memberi banyak lembur atau memberi upah lembur,  memberi tunjangan kepada karyawan yang menikah,  dan lain sebagainya.
+                ''')
+        
+        st.subheader("Distribusi Job Satisfaction berdasarkan tingkat stress")
+        st.image('stress.png')
+        st.write('''
+                Dilihat dari visualisasi, tingkat stress karyawan memiliki pengaruh terhadap kepuasan kerja.
+                Secara garis besar karyawan memiliki tingkat stress yang rendah.
+                 Karyawan dengan tingkat stress yang rendah yaitu skala 1 memiliki kepuasan kerja yang baik dengan skala 4 paling banyak dengan jumlah 760 orang.
+                 Dari hasil ini dapat juga disarankan agar perusahaan memerhatikan karyawan tingkat stress rendah dengan kepuasan kerja rendah pula, karena kemungkinan adanya faktor lain yang memengaruhi kepuasan kerja.
+                    ''')
+    
     
 
